@@ -16,6 +16,8 @@
 
 import _winreg
 import ctypes
+import os
+import re
 import time
 import win32process
 import win32security
@@ -384,3 +386,115 @@ class WindowsUtils(base.BaseOSUtils):
                                                  max_label_size, 0, 0, 0, 0, 0)
         if ret_val:
             return label.value
+
+    def get_folder_path(self):
+        """ Get the cloudbase-init installation folder path."""
+        path = os.path.realpath(__file__)
+        dirr = "Cloudbase-Init"
+        return os.path.join(path[:path.find(dirr)+len(dirr)])
+
+    def sanitaze_powershell_path(self, path):
+        escape_dict = {'\a': r'\a',
+                       '\b': r'\b',
+                       '\c': r'\c',
+                       '\f': r'\f',
+                       '\n': r'\n',
+                       '\r': r'\r',
+                       '\t': r'\t',
+                       '\v': r'\v',
+                       '\'': r'\'',
+                       '\"': r'\"',
+                       '\0': r'\0',
+                       '\1': r'\1',
+                       '\2': r'\2',
+                       '\3': r'\3',
+                       '\4': r'\4',
+                       '\5': r'\5',
+                       '\6': r'\6',
+                       '\7': r'\7',
+                       '\8': r'\8',
+                       '\9': r'\9'
+                       }
+        clean_path = ""
+
+        for c in path:
+            if not c.isalnum():
+                clean_path += '`' + c
+            else:
+                clean_path += c
+        clean_path = "".join([escape_dict.get(c, c) for c in clean_path])
+
+        return clean_path
+
+    def get_params_from_extension(self, target_path):
+        extension = os.path.splitext(target_path)[1][1:].strip()
+        if extension == "ps1":
+            if os.path.isdir(os.path.expandvars('%windir%\\sysnative')):
+                target_path = self.sanitaze_powershell_path(target_path)
+                args = [os.path.expandvars('%windir%\\sysnative\\'
+                                           'WindowsPowerShell\\v1.0\\'
+                                           'powershell.exe'),
+                        '-ExecutionPolicy',
+                        'RemoteSigned', '-NonInteractive', target_path]
+                shell = False
+            else:
+                target_path = target_path.replace(' ', '` ')
+                args = ['powershell.exe', '-ExecutionPolicy', 'RemoteSigned',
+                        '-NonInteractive', target_path]
+                shell = False
+        elif extension == "sh":
+            args = ['bash.exe', target_path]
+            shell = False
+        elif extension == "cmd":
+            if os.path.isdir(os.path.expandvars('%windir%\\sysnative')):
+                args = [os.path.expandvars('%windir%\\sysnative\\cmd.exe'),
+                        '/c', target_path]
+                shell = True
+            else:
+                args = [target_path]
+                shell = True
+        elif extension == "py":
+            py_path = os.getcwd() + '\\python.exe'
+            args = [py_path, target_path]
+            shell = False
+        else:
+            args = [target_path]
+            shell = False
+        return (args, shell)
+
+    def get_userdata_params(self, target_path, user_data):
+        if re.search(r'^rem cmd\s', user_data, re.I):
+            if os.path.isdir(os.path.expandvars('%windir%\\sysnative')):
+                target_path += '.cmd'
+                args = [os.path.expandvars('%windir%\\sysnative\\cmd.exe'),
+                        '/c', target_path]
+                shell = True
+            else:
+                target_path += '.cmd'
+                args = [target_path]
+                shell = True
+        elif re.search(r'^#!', user_data, re.I):
+            target_path += '.sh'
+            args = ['bash.exe', target_path]
+            shell = False
+        elif re.search(r'^#ps1\s', user_data, re.I):
+            if os.path.isdir(os.path.expandvars('%windir%\\sysnative')):
+                target_path += '.ps1'
+                target_path = target_path.replace(' ', '` ')
+                args = [os.path.expandvars('%windir%\\sysnative\\'
+                                           'WindowsPowerShell\\v1.0\\'
+                                           'powershell.exe'),
+                        '-ExecutionPolicy',
+                        'RemoteSigned', '-NonInteractive', target_path]
+                shell = False
+            else:
+                target_path += '.ps1'
+                target_path = target_path.replace(' ', '` ')
+                args = ['powershell.exe', '-ExecutionPolicy', 'RemoteSigned',
+                        '-NonInteractive', target_path]
+                shell = False
+        else:
+            # Unsupported
+            LOG.warning('Unsupported user_data format')
+            raise Exception()
+        return (args, shell)

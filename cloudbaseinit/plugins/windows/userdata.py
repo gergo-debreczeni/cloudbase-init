@@ -16,7 +16,6 @@
 
 import email
 import os
-import re
 import tempfile
 import uuid
 
@@ -126,37 +125,12 @@ def handle(user_data):
     osutils = osutils_factory.OSUtilsFactory().get_os_utils()
 
     target_path = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
-    if re.search(r'^rem cmd\s', user_data, re.I):
-        target_path += '.cmd'
-        args = [target_path]
-        shell = True
-    elif re.search(r'^#!', user_data, re.I):
-        target_path += '.sh'
-        args = ['bash.exe', target_path]
-        shell = False
-    elif re.search(r'^#ps1\s', user_data, re.I):
-        target_path += '.ps1'
-        args = ['powershell.exe', '-ExecutionPolicy', 'RemoteSigned',
-                '-NonInteractive', target_path]
-        shell = False
-    elif re.search(r'^#ps1_sysnative\s', user_data, re.I):
-        if os.path.isdir(os.path.expandvars('%windir%\\sysnative')):
-            target_path += '.ps1'
-            args = [os.path.expandvars('%windir%\\sysnative\\'
-                                       'WindowsPowerShell\\v1.0\\'
-                                       'powershell.exe'),
-                    '-ExecutionPolicy',
-                    'RemoteSigned', '-NonInteractive', target_path]
-            shell = False
-        else:
-            # Unable to validate sysnative presence
-            LOG.warning('Unable to validate sysnative folder presence. '
-                        'If Target OS is Server 2003, please ensure you '
-                        'have KB942589 installed')
-            return (base.PLUGIN_EXECUTION_DONE, False)
-    else:
-        # Unsupported
-        LOG.warning('Unsupported user_data format')
+    args = []
+    shell = False
+    try:
+        (args, shell) = osutils.get_userdata_params(target_path, user_data)
+
+    except Exception, ex:
         return (base.PLUGIN_EXECUTION_DONE, False)
 
     try:
