@@ -93,3 +93,15 @@ class BaseOSUtils(object):
 
     def get_volume_label(self, drive):
         pass
+
+    def get_folder_path(self):
+        pass
+
+    def get_params_from_extension(self, target_path):
+        pass
+
+    def get_userdata_params(self, target_path, user_data):
+        pass
+
+    def open_file(self, path, mode):
+        return open(path, mode)
