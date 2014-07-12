@@ -1,4 +1,4 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
+# vim: tabstop=8 shiftwidth=4 softtabstop=4
 
 # Copyright 2012 Cloudbase Solutions Srl
 #
